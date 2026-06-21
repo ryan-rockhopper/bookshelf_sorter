@@ -9,47 +9,64 @@ def read_csv(csv_path: Path) -> list[dict]:
         reader = csv.DictReader(f)
         return list(reader)
 
-def title_key(row: dict) -> str:
+
+def sort_key(row: dict) -> str:
     title = row.get("title", "")
     if title is None:
-        return ''
-    else:
-        return str(title).lower()
+        title = ""
+    return str(title).lower()
+
+
+def write_sorted_csv(input_csv: Path, rows: list[dict]) -> Path:
+    out_path = input_csv.with_name(f"{input_csv.stem}_sorted.csv")
+
+    # Use the same header fields/order as the input CSV
+    fieldnames = list(rows[0].keys()) if rows else []
+
+    # Drop any "None" key (happens when a row has extra commas/fields)
+    fieldnames = [f for f in fieldnames if f is not None]
+
+    with out_path.open("w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer.writeheader()
+
+        for row in rows:
+            # Keep only keys that exist in the header
+            clean_row = {k: v for k, v in row.items() if k in fieldnames}
+            writer.writerow(clean_row)
+
+    return out_path
+
 
 
 def main() -> int:
-    # 1) Determine CSV path
-    FALLBACK_PATH = 'book_list.csv'
+    FALLBACK_PATH = "book_list.csv"
 
     if len(sys.argv) > 2:
         print(f"Usage: {sys.argv[0]} [path/to/file.csv]")
         return 2
 
     if len(sys.argv) == 2:
-        candidate = Path(sys.argv[1])
-
-        if not candidate.exists() or not candidate.is_file():
+        csv_file = Path(sys.argv[1])
+        if not csv_file.exists() or not csv_file.is_file():
             print(f"Usage: {sys.argv[0]} [path/to/file.csv]")
             return 2
-
-        if candidate.suffix.lower() != ".csv":
+        if csv_file.suffix.lower() != ".csv":
             print(f"Usage: {sys.argv[0]} [path/to/file.csv]")
             return 2
-
-        csv_file = candidate
     else:
         csv_file = Path(FALLBACK_PATH)
 
-    # 2) Read CSV into a data structure
     rows = read_csv(csv_file)
+    rows.sort(key=sort_key)
 
-    rows.sort(key=title_key)
-
-    # 4) Print titles + count
+    # Optional: print full titles without truncation
     for row in rows:
-        print(title_key(row))
+        print(row.get("title", ""))
 
+    out_path = write_sorted_csv(csv_file, rows)
     print(f"Count: {len(rows)}")
+    print(f"Wrote: {out_path}")
     return 0
 
 
